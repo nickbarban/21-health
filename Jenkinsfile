@@ -1,36 +1,41 @@
+#!/usr/bin/env groovy
+
 node {
-    // uncomment these 2 lines and edit the name 'node-4.6.0' according to what you choose in configuration
-    // def nodeHome = tool name: 'node-4.6.0', type: 'jenkins.plugins.nodejs.tools.NodeJSInstallation'
-    // env.PATH = "${nodeHome}/bin:${env.PATH}"
-
-    stage('check tools') {
-        sh "node -v"
-        sh "npm -v"
-        sh "bower -v"
-        sh "gulp -v"
-    }
-
     stage('checkout') {
         checkout scm
     }
 
-    stage('npm install') {
-        sh "npm install"
+    stage('check java') {
+        sh "java -version"
     }
 
     stage('clean') {
+        sh "chmod +x mvnw"
         sh "./mvnw clean"
     }
 
     stage('backend tests') {
-        sh "./mvnw test"
+        try {
+            sh "./mvnw test"
+        } catch(err) {
+            throw err
+        } finally {
+            junit '**/target/surefire-reports/TEST-*.xml'
+        }
     }
 
     stage('frontend tests') {
-        sh "gulp test"
+        try {
+            sh "./mvnw com.github.eirslett:frontend-maven-plugin: -Dfrontend..arguments='run test'"
+        } catch(err) {
+            throw err
+        } finally {
+            junit '**/target/test-results/jest/TESTS-*.xml'
+        }
     }
 
     stage('packaging') {
-        sh "./mvnw package -Pprod -DskipTests"
+        sh "./mvnw verify -Pprod -DskipTests"
+        archiveArtifacts artifacts: '**/target/*.war', fingerprint: true
     }
 }
